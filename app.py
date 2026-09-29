@@ -327,7 +327,7 @@ def dashboard():
 def diagnostico():
     empresa = empresa_actual()
     paso = request.values.get("paso", "1")
-    if paso not in {"1", "2", "3"}:
+    if paso not in {"1", "2", "3", "4"}:
         paso = "1"
     if paso != "1" and not empresa:
         flash("Primero completa la información de tu negocio.", "error")
@@ -339,8 +339,18 @@ def diagnostico():
                 if paso == "1":
                     negocio = request.form.get("negocio", "").strip()
                     sector = request.form.get("sector", "").strip()
+                    if sector == "Otro":
+                        sector = request.form.get("sector_otro", "").strip()
+                    if not sector:
+                        flash("Especifica el sector de tu negocio.", "error")
+                        return redirect(url_for("diagnostico", paso=1))
                     propuesta = request.form.get("propuesta", "").strip()
                     objetivo = request.form.get("objetivo", "").strip()
+                    if objetivo == "Otro":
+                        objetivo = request.form.get("objetivo_otro", "").strip()
+                    if not objetivo:
+                        flash("Especifica el objetivo principal de tu negocio.", "error")
+                        return redirect(url_for("diagnostico", paso=1))
                     presupuesto = request.form.get("presupuesto", "0").strip() or "0"
                     if empresa:
                         cursor.execute("UPDATE empresas SET nombre_empresa=%s, sector=%s, propuesta_valor=%s, objetivo=%s, presupuesto=%s WHERE id_empresa=%s", (negocio, sector, propuesta, objetivo, presupuesto, empresa["id_empresa"]))
@@ -360,13 +370,18 @@ def diagnostico():
         finally:
             conexion.close()
         siguiente = int(paso) + 1
-        if siguiente <= 3:
+        if siguiente <= 4:
             flash(f"Paso {paso} guardado. Continuemos con el siguiente.", "exito")
             return redirect(url_for("diagnostico", paso=siguiente))
-        flash("Diagnóstico completado. Ya puedes crear tu estrategia.", "exito")
-        return redirect(url_for("diagnostico", paso=3, completo=1))
+        return redirect(url_for("diagnostico", paso=4))
     id_empresa = empresa["id_empresa"] if empresa else None
-    return render_template("diagnostico.html", empresa=empresa, diagnostico=diagnostico_actual(id_empresa), analisis_marca=analisis_marca_actual(id_empresa), paso=int(paso), completo=request.args.get("completo") == "1")
+    diagnostico_guardado = diagnostico_actual(id_empresa)
+    analisis_guardado = analisis_marca_actual(id_empresa)
+    if paso == "4" and not diagnostico_guardado:
+        return redirect(url_for("diagnostico", paso=2))
+    if paso == "4" and not analisis_guardado:
+        return redirect(url_for("diagnostico", paso=3))
+    return render_template("diagnostico.html", empresa=empresa, diagnostico=diagnostico_guardado, analisis_marca=analisis_guardado, paso=int(paso))
 
 
 @app.route("/estrategia", methods=["GET", "POST"])

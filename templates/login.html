@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block titulo %}Iniciar sesión - Newrofy{% endblock %}
+
+{% block contenido %}
+<div class="login-shell">
+    <section class="login-brand"><div><p class="eyebrow">IA + NEUROMARKETING</p><h1>Marketing digital inteligente, ahora al alcance de cada pyme colombiana.</h1></div><p>Diagnostica. Decide. Crece.</p></section>
+    <section class="tarjeta-login"><p class="eyebrow">BIENVENIDO</p><h1>Inicia sesión</h1><p class="muted">Entra a tu centro de campañas Newrofy.</p>
+        <form method="POST" action="{{ url_for('login') }}"><label for="correo">Correo</label><input type="email" id="correo" name="correo" placeholder="tu@empresa.com" required><label for="contrasena">Contraseña</label><input type="password" id="contrasena" name="contrasena" placeholder="••••••••" required><button type="submit">Entrar a Newrofy <span>→</span></button></form>
+    </section>
+</div>
+{% endblock %}

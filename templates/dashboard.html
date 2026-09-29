@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block titulo %}Panel - Newrofy{% endblock %}
+
+{% block contenido %}
+<header class="page-top"><div><p>Panel principal</p><h1>Bienvenido de nuevo, {{ session.get('nombre').split(' ')[0] }}.</h1></div><a class="primary-button" href="{{ url_for('diagnostico') }}">+ Nueva campaña</a></header>
+<section class="kpi-grid"><article><span>Empresas activas</span><strong>{{ metricas.empresas_activas }}</strong><small>Registradas en tu cuenta</small></article><article><span>Estrategias creadas</span><strong>{{ metricas.campanas }}</strong><small>Datos de la base</small></article><article><span>Contenidos generados</span><strong>{{ metricas.usos_ia }}</strong><small>Datos de la base</small></article><article><span>ROI promedio</span><strong>{{ metricas.roi if metricas.roi is not none else '—' }}</strong><small>Indicadores registrados</small></article></section>
+<section class="section-title"><h2>Módulos del sistema</h2><span>Tu centro de control</span></section>
+<section class="module-grid"><a class="module-card" href="{{ url_for('diagnostico') }}"><i>◉</i><h2>Diagnóstico inteligente</h2><p>Análisis de marca y audiencia</p><b>Comenzar →</b></a><a class="module-card" href="{{ url_for('estrategia') }}"><i>✦</i><h2>Estrategia con IA</h2><p>Planes personalizados</p><b>Ver estrategia →</b></a><a class="module-card" href="{{ url_for('estrategia') }}"><i>✎</i><h2>Generador de contenido</h2><p>Creación automática</p><b>Crear contenido →</b></a><a class="module-card" href="{{ url_for('reportes') }}"><i>▥</i><h2>Visualización y reportes</h2><p>Métricas en tiempo real</p><b>Ver reportes →</b></a></section>
+<section class="recent"><div class="section-title"><h2>Actividad reciente</h2></div>{% for item in actividad %}<p><b>●</b> {{ item.accion }} <span>{{ item.fecha.strftime('%d/%m/%Y') if item.fecha else 'Sin fecha' }}</span></p>{% else %}<p>Cuando crees una estrategia o contenido, aparecerá aquí.</p>{% endfor %}</section>
+{% endblock %}

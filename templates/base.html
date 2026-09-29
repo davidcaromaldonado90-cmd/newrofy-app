@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}Newrofy{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    {% if session.get('id_usuario') %}
+    <aside class="sidebar">
+        <a class="marca" href="{{ url_for('dashboard') }}">Newrofy<span>IA + Neuromarketing</span></a>
+        <nav class="navegacion" aria-label="Navegación principal">
+            <a href="{{ url_for('dashboard') }}">▦ <span>Dashboard</span></a>
+            <a href="{{ url_for('diagnostico') }}">◉ <span>Diagnóstico</span></a>
+            <a href="{{ url_for('estrategia') }}">✦ <span>Estrategia</span></a>
+            <a href="{{ url_for('reportes') }}">▥ <span>Reportes</span></a>
+        </nav>
+        <div class="sidebar-bottom"><span>Plan Profesional</span><strong>Activo</strong><a href="{{ url_for('logout') }}">Cerrar sesión</a></div>
+    </aside>
+    {% endif %}
+    <main class="contenido {% if session.get('id_usuario') %}app-content{% endif %}">
+        {% with mensajes = get_flashed_messages(with_categories=true) %}
+            {% if mensajes %}
+                <div class="mensajes">
+                    {% for categoria, mensaje in mensajes %}
+                        <p class="mensaje mensaje-{{ categoria }}">{{ mensaje }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block contenido %}{% endblock %}
+    </main>
+</body>
+</html>

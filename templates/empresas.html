@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block titulo %}Empresas - Newrofy{% endblock %}
+
+{% block contenido %}
+<header class="page-top">
+    <div>
+        <p>Administración de cartera</p>
+        <h1>Empresas gestionadas</h1>
+        <span>Selecciona una empresa para trabajar con sus diagnósticos, estrategias y reportes.</span>
+    </div>
+</header>
+
+<section class="company-toolbar">
+    <div><h2>Tu cartera</h2><p>Los datos de cada empresa se conservan separados.</p></div>
+    <span class="company-count">{{ empresas|length }} empresa{{ '' if empresas|length == 1 else 's' }}</span>
+</section>
+
+<details class="company-create">
+    <summary>＋ Registrar nueva empresa</summary>
+    <form method="post">
+        <div class="form-row">
+            <div><label for="nombre_empresa">Nombre de la empresa *</label><input id="nombre_empresa" name="nombre_empresa" required maxlength="150" placeholder="Ej. Café Andino"></div>
+            <div><label for="sector">Sector</label><input id="sector" name="sector" maxlength="100" placeholder="Ej. Alimentos y bebidas"></div>
+        </div>
+        <div class="form-row">
+            <div><label for="publico_objetivo">Público objetivo</label><input id="publico_objetivo" name="publico_objetivo" maxlength="255" placeholder="Ej. Jóvenes profesionales"></div>
+            <div><label for="objetivo">Objetivo principal</label><input id="objetivo" name="objetivo" maxlength="150" placeholder="Ej. Aumentar ventas"></div>
+        </div>
+        <div class="form-actions"><button class="primary-button" type="submit">Crear y seleccionar empresa →</button></div>
+    </form>
+</details>
+
+<section class="company-grid">
+    {% for empresa in empresas %}
+    <article class="company-card {% if empresa.id_empresa == id_empresa_activa %}active-company{% endif %}">
+        {% if empresa.id_empresa == id_empresa_activa %}<span class="company-status">Empresa activa</span>{% else %}<span class="company-status">Disponible</span>{% endif %}
+        <h2>{{ empresa.nombre_empresa }}</h2>
+        <p>{{ empresa.sector or 'Sector pendiente de registrar' }}</p>
+        <div class="company-data">
+            <div><span>Madurez digital</span><b>{% if empresa.puntaje_madurez is not none %}{{ empresa.puntaje_madurez }}/100{% else %}Pendiente{% endif %}</b></div>
+            <div><span>Estrategias</span><b>{{ empresa.total_estrategias }}</b></div>
+        </div>
+        {% if empresa.id_empresa == id_empresa_activa %}
+        <div class="company-actions"><span class="primary-button selected">✓ Empresa seleccionada</span></div>
+        {% else %}
+        <form class="company-actions" method="post" action="{{ url_for('seleccionar_empresa', id_empresa=empresa.id_empresa) }}"><button class="primary-button" type="submit">Gestionar esta empresa →</button></form>
+        {% endif %}
+    </article>
+    {% else %}
+    <article class="empty-state company-empty"><h2>Aún no tienes empresas registradas</h2><p>Registra la primera para iniciar su diagnóstico y construir su estrategia.</p></article>
+    {% endfor %}
+</section>
+{% endblock %}

@@ -46,9 +46,25 @@ def consulta_varias(sql, parametros=()):
 
 
 def empresa_actual():
+    """Obtiene la empresa seleccionada para la sesión actual.
+
+    Si el administrador aún no ha seleccionado una empresa, se conserva el
+    comportamiento anterior y se toma la más reciente. Nunca se permite usar
+    una empresa que pertenezca a otro usuario.
+    """
+    id_usuario = session["id_usuario"]
+    id_empresa_activa = session.get("id_empresa_activa")
+    if id_empresa_activa:
+        empresa = consulta_unica(
+            "SELECT * FROM empresas WHERE id_empresa = %s AND id_usuario = %s",
+            (id_empresa_activa, id_usuario),
+        )
+        if empresa:
+            return empresa
+        session.pop("id_empresa_activa", None)
     return consulta_unica(
         "SELECT * FROM empresas WHERE id_usuario = %s ORDER BY fecha_creacion DESC, id_empresa DESC LIMIT 1",
-        (session["id_usuario"],),
+        (id_usuario,),
     )
 
 
@@ -133,6 +149,17 @@ def login_requerido(vista):
     return envoltura
 
 
+def administrador_requerido(vista):
+    """Restringe la cartera de empresas a cuentas administradoras."""
+    @wraps(vista)
+    def envoltura(*args, **kwargs):
+        if session.get("rol") != "Administrador":
+            flash("Este módulo está disponible para cuentas administradoras.", "error")
+            return redirect(url_for("dashboard"))
+        return vista(*args, **kwargs)
+    return envoltura
+
+
 # ------------------------------------------------------------
 # Página raíz: si ya hay sesión, va al dashboard; si no, al login.
 # ------------------------------------------------------------
@@ -213,6 +240,7 @@ def login():
             session["id_usuario"] = usuario["id_usuario"]
             session["nombre"] = usuario["nombre"]
             session["rol"] = usuario["nombre_cargo"]
+            session.pop("id_empresa_activa", None)
             flash(f"Bienvenido, {usuario['nombre']}.", "exito")
             return redirect(url_for("dashboard"))
 
@@ -309,6 +337,8 @@ def dashboard():
               (SELECT ROUND(AVG(i.roi), 2) FROM indicadores_desempeno i JOIN calendarios_editoriales ce ON ce.id_calendario = i.id_calendario JOIN estrategias e ON e.id_estrategia = ce.id_estrategia JOIN empresas em ON em.id_empresa = e.id_empresa WHERE em.id_usuario = %s) AS roi""",
         (session["id_usuario"],) * 4,
     )
+
+
     actividad = consulta_varias(
         """SELECT 'Estrategia creada' AS accion, e.fecha_generacion AS fecha FROM estrategias e JOIN empresas em ON em.id_empresa = e.id_empresa WHERE em.id_usuario = %s
            UNION ALL SELECT CONCAT('Contenido ', c.tipo, ' generado') AS accion, c.fecha_generacion AS fecha FROM contenidos c JOIN estrategias e ON e.id_estrategia = c.id_estrategia JOIN empresas em ON em.id_empresa = e.id_empresa WHERE em.id_usuario = %s
@@ -320,6 +350,82 @@ def dashboard():
         empresa=empresa, diagnostico=diagnostico, estrategia=estrategia,
         metricas=metricas, actividad=actividad,
     )
+
+
+@app.route("/empresas", methods=["GET", "POST"])
+@login_requerido
+@administrador_requerido
+def empresas():
+    """Cartera de empresas de la cuenta administradora."""
+    if request.method == "POST":
+        nombre_empresa = request.form.get("nombre_empresa", "").strip()
+        sector = request.form.get("sector", "").strip()
+        publico_objetivo = request.form.get("publico_objetivo", "").strip()
+        objetivo = request.form.get("objetivo", "").strip()
+        if not nombre_empresa:
+            flash("Indica el nombre de la empresa para crearla.", "error")
+        else:
+            conexion = obtener_conexion()
+            try:
+                with conexion.cursor() as cursor:
+                    cursor.execute(
+                        """INSERT INTO empresas
+                           (id_usuario, nombre_empresa, sector, publico_objetivo, objetivo, fecha_creacion)
+                           VALUES (%s, %s, %s, %s, %s, CURDATE())""",
+                        (session["id_usuario"], nombre_empresa, sector or None,
+                         publico_objetivo or None, objetivo or None),
+                    )
+                    session["id_empresa_activa"] = cursor.lastrowid
+                conexion.commit()
+            finally:
+                conexion.close()
+            flash(f"{nombre_empresa} fue creada y quedó seleccionada.", "exito")
+            return redirect(url_for("empresas"))
+
+    # Mantiene como activa la empresa más reciente cuando el administrador
+    # entra por primera vez al módulo y aún no ha elegido una manualmente.
+    if not session.get("id_empresa_activa"):
+        empresa_predeterminada = empresa_actual()
+        if empresa_predeterminada:
+            session["id_empresa_activa"] = empresa_predeterminada["id_empresa"]
+
+    empresas_registradas = consulta_varias(
+        """SELECT e.*,
+                  (SELECT m.puntaje
+                     FROM formularios_diagnostico f
+                     JOIN madurez_digital m ON m.id_formulario = f.id_formulario
+                    WHERE f.id_empresa = e.id_empresa
+                    ORDER BY f.fecha_completado DESC, f.id_formulario DESC LIMIT 1) AS puntaje_madurez,
+                  (SELECT m.nivel
+                     FROM formularios_diagnostico f
+                     JOIN madurez_digital m ON m.id_formulario = f.id_formulario
+                    WHERE f.id_empresa = e.id_empresa
+                    ORDER BY f.fecha_completado DESC, f.id_formulario DESC LIMIT 1) AS nivel_madurez,
+                  (SELECT COUNT(*) FROM estrategias es WHERE es.id_empresa = e.id_empresa) AS total_estrategias
+           FROM empresas e
+           WHERE e.id_usuario = %s
+           ORDER BY CASE WHEN e.id_empresa = %s THEN 0 ELSE 1 END,
+                    e.fecha_creacion DESC, e.id_empresa DESC""",
+        (session["id_usuario"], session.get("id_empresa_activa", 0)),
+    )
+    return render_template("empresas.html", empresas=empresas_registradas,
+                           id_empresa_activa=session.get("id_empresa_activa"))
+
+
+@app.route("/empresas/<int:id_empresa>/seleccionar", methods=["POST"])
+@login_requerido
+@administrador_requerido
+def seleccionar_empresa(id_empresa):
+    empresa = consulta_unica(
+        "SELECT id_empresa, nombre_empresa FROM empresas WHERE id_empresa = %s AND id_usuario = %s",
+        (id_empresa, session["id_usuario"]),
+    )
+    if not empresa:
+        flash("No tienes permiso para seleccionar esa empresa.", "error")
+        return redirect(url_for("empresas"))
+    session["id_empresa_activa"] = empresa["id_empresa"]
+    flash(f"Ahora estás gestionando {empresa['nombre_empresa']}.", "exito")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/diagnostico", methods=["GET", "POST"])

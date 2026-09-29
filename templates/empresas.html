@@ -6,7 +6,7 @@
     <div>
         <p>Administración de cartera</p>
         <h1>Empresas gestionadas</h1>
-        <span>Selecciona una empresa para trabajar con sus diagnósticos, estrategias y reportes.</span>
+        <span>Elige una empresa para gestionarla o registra una nueva para iniciar su diagnóstico.</span>
     </div>
 </header>
 
@@ -16,7 +16,7 @@
 </section>
 
 <details class="company-create">
-    <summary>＋ Registrar nueva empresa</summary>
+    <summary>＋ Crear nueva empresa y comenzar diagnóstico</summary>
     <form method="post">
         <div class="form-row">
             <div><label for="nombre_empresa">Nombre de la empresa *</label><input id="nombre_empresa" name="nombre_empresa" required maxlength="150" placeholder="Ej. Café Andino"></div>
@@ -26,7 +26,8 @@
             <div><label for="publico_objetivo">Público objetivo</label><input id="publico_objetivo" name="publico_objetivo" maxlength="255" placeholder="Ej. Jóvenes profesionales"></div>
             <div><label for="objetivo">Objetivo principal</label><input id="objetivo" name="objetivo" maxlength="150" placeholder="Ej. Aumentar ventas"></div>
         </div>
-        <div class="form-actions"><button class="primary-button" type="submit">Crear y seleccionar empresa →</button></div>
+        <p class="company-hint">Al crearla se abrirá el primer paso del diagnóstico de esa empresa.</p>
+        <div class="form-actions"><button class="primary-button" type="submit">Crear e ir al diagnóstico →</button></div>
     </form>
 </details>
 
@@ -41,9 +42,9 @@
             <div><span>Estrategias</span><b>{{ empresa.total_estrategias }}</b></div>
         </div>
         {% if empresa.id_empresa == id_empresa_activa %}
-        <div class="company-actions"><span class="primary-button selected">✓ Empresa seleccionada</span></div>
+        <div class="company-actions"><span class="primary-button selected">✓ Empresa seleccionada</span><a class="outline-button" href="{{ url_for('diagnostico', paso=1) }}">Ir al diagnóstico →</a></div>
         {% else %}
-        <form class="company-actions" method="post" action="{{ url_for('seleccionar_empresa', id_empresa=empresa.id_empresa) }}"><button class="primary-button" type="submit">Gestionar esta empresa →</button></form>
+        <form class="company-actions" method="post" action="{{ url_for('seleccionar_empresa', id_empresa=empresa.id_empresa) }}"><button class="primary-button" type="submit">Seleccionar esta empresa →</button></form>
         {% endif %}
     </article>
     {% else %}

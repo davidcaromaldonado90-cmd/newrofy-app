@@ -379,8 +379,8 @@ def empresas():
                 conexion.commit()
             finally:
                 conexion.close()
-            flash(f"{nombre_empresa} fue creada y quedó seleccionada.", "exito")
-            return redirect(url_for("empresas"))
+            flash(f"{nombre_empresa} fue creada y quedó seleccionada. Completa su diagnóstico para continuar.", "exito")
+            return redirect(url_for("diagnostico", paso=1))
 
     # Mantiene como activa la empresa más reciente cuando el administrador
     # entra por primera vez al módulo y aún no ha elegido una manualmente.
@@ -424,8 +424,8 @@ def seleccionar_empresa(id_empresa):
         flash("No tienes permiso para seleccionar esa empresa.", "error")
         return redirect(url_for("empresas"))
     session["id_empresa_activa"] = empresa["id_empresa"]
-    flash(f"Ahora estás gestionando {empresa['nombre_empresa']}.", "exito")
-    return redirect(url_for("dashboard"))
+    flash(f"{empresa['nombre_empresa']} quedó seleccionada como empresa activa.", "exito")
+    return redirect(url_for("empresas"))
 
 
 @app.route("/diagnostico", methods=["GET", "POST"])

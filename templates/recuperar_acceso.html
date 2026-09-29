@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block titulo %}Recuperar acceso - Newrofy{% endblock %}
+{% block contenido %}
+<div class="login-shell"><section class="login-brand"><div><p class="eyebrow">RECUPERACIÓN SEGURA</p><h1>Recupera el acceso a tu centro de campañas.</h1></div><p>Te enviaremos un enlace válido por 30 minutos.</p></section><section class="tarjeta-login"><p class="eyebrow">RECUPERAR ACCESO</p><h1>¿Olvidaste tu contraseña?</h1><p class="muted">Escribe el correo asociado a tu cuenta.</p><form method="POST"><label for="correo">Correo</label><input id="correo" type="email" name="correo" autocomplete="email" placeholder="tu@empresa.com" required><button type="submit">Enviar enlace de recuperación <span>→</span></button></form><p class="auth-footer"><a href="{{ url_for('login') }}">← Volver al inicio de sesión</a></p></section></div>
+{% endblock %}

@@ -8,9 +8,13 @@ del usuario que inició sesión.
 
 import os
 import json
+import secrets
+import smtplib
+from datetime import datetime, timedelta
+from email.message import EmailMessage
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 
 from db import obtener_conexion
@@ -75,6 +79,34 @@ def estrategia_actual(id_empresa):
     return dato
 
 
+def hay_usuarios():
+    return consulta_unica("SELECT COUNT(*) AS total FROM usuarios")["total"] > 0
+
+
+def contrasena_valida(contrasena):
+    return len(contrasena) >= 10 and any(letra.isupper() for letra in contrasena) and any(letra.islower() for letra in contrasena) and any(letra.isdigit() for letra in contrasena)
+
+
+def enviar_recuperacion(destinatario, enlace):
+    """Envía el enlace si el SMTP está configurado en .env."""
+    servidor = os.getenv("MAIL_HOST")
+    remitente = os.getenv("MAIL_FROM")
+    if not servidor or not remitente:
+        return False
+    mensaje = EmailMessage()
+    mensaje["Subject"] = "Recupera tu acceso a Newrofy"
+    mensaje["From"] = remitente
+    mensaje["To"] = destinatario
+    mensaje.set_content(f"Usa este enlace para crear una nueva contraseña: {enlace}\n\nEl enlace vence en 30 minutos.")
+    with smtplib.SMTP(servidor, int(os.getenv("MAIL_PORT", "587"))) as smtp:
+        if os.getenv("MAIL_TLS", "true").lower() == "true":
+            smtp.starttls()
+        if os.getenv("MAIL_USER"):
+            smtp.login(os.getenv("MAIL_USER"), os.getenv("MAIL_PASSWORD"))
+        smtp.send_message(mensaje)
+    return True
+
+
 # ------------------------------------------------------------
 # Decorador para proteger rutas: si no hay sesión iniciada,
 # manda de vuelta al login.
@@ -99,11 +131,53 @@ def inicio():
     return redirect(url_for("login"))
 
 
+@app.route("/crear-administrador", methods=["GET", "POST"])
+def crear_administrador():
+    if hay_usuarios():
+        flash("La cuenta inicial ya fue creada. Inicia sesión para continuar.", "error")
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "").strip()
+        correo = request.form.get("correo", "").strip().lower()
+        dni = request.form.get("dni", "").strip()
+        contrasena = request.form.get("contrasena", "")
+        confirmacion = request.form.get("confirmacion", "")
+        if not nombre or not correo or not dni:
+            flash("Completa todos los datos de la cuenta administradora.", "error")
+        elif contrasena != confirmacion:
+            flash("Las contraseñas no coinciden.", "error")
+        elif not contrasena_valida(contrasena):
+            flash("La contraseña debe tener 10 caracteres, mayúscula, minúscula y número.", "error")
+        else:
+            conexion = obtener_conexion()
+            try:
+                with conexion.cursor() as cursor:
+                    cursor.execute("SELECT id_rol FROM roles WHERE nombre_cargo = %s", ("Administrador",))
+                    rol = cursor.fetchone()
+                    if not rol:
+                        cursor.execute("INSERT INTO roles (nombre_cargo, permisos) VALUES (%s, %s)", ("Administrador", json.dumps(["todo"])))
+                        id_rol = cursor.lastrowid
+                    else:
+                        id_rol = rol["id_rol"]
+                    cursor.execute("INSERT INTO usuarios (nombre, correo, contrasena, dni, id_rol) VALUES (%s,%s,%s,%s,%s)", (nombre, correo, generate_password_hash(contrasena), dni, id_rol))
+                conexion.commit()
+            except Exception:
+                flash("No fue posible crear la cuenta. Verifica que el correo y documento no estén registrados.", "error")
+                return render_template("crear_administrador.html")
+            finally:
+                conexion.close()
+            flash("Cuenta administradora creada. Ya puedes iniciar sesión.", "exito")
+            return redirect(url_for("login"))
+    return render_template("crear_administrador.html")
+
+
 # ------------------------------------------------------------
 # Login
 # ------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    if not hay_usuarios():
+        return redirect(url_for("crear_administrador"))
     if request.method == "POST":
         correo = request.form.get("correo", "").strip()
         contrasena = request.form.get("contrasena", "")
@@ -133,6 +207,65 @@ def login():
         flash("Correo o contraseña incorrectos.", "error")
 
     return render_template("login.html")
+
+
+@app.route("/recuperar-acceso", methods=["GET", "POST"])
+def recuperar_acceso():
+    if request.method == "POST":
+        correo = request.form.get("correo", "").strip().lower()
+        usuario = consulta_unica("SELECT id_usuario, correo FROM usuarios WHERE correo = %s", (correo,))
+        if usuario:
+            token = secrets.token_urlsafe(32)
+            expiracion = datetime.now() + timedelta(minutes=30)
+            conexion = obtener_conexion()
+            try:
+                with conexion.cursor() as cursor:
+                    cursor.execute("DELETE FROM tokens_recuperacion WHERE id_usuario = %s", (usuario["id_usuario"],))
+                    cursor.execute("INSERT INTO tokens_recuperacion (id_usuario, token, fecha_expiracion, usado) VALUES (%s,%s,%s,0)", (usuario["id_usuario"], generate_password_hash(token), expiracion))
+                conexion.commit()
+                enlace = url_for("restablecer_contrasena", token=token, _external=True)
+                if not enviar_recuperacion(usuario["correo"], enlace):
+                    with conexion.cursor() as cursor:
+                        cursor.execute("DELETE FROM tokens_recuperacion WHERE id_usuario = %s", (usuario["id_usuario"],))
+                    conexion.commit()
+                    flash("La recuperación por correo aún no está configurada. Agrega MAIL_HOST y MAIL_FROM en .env.", "error")
+                    return render_template("recuperar_acceso.html")
+            except Exception:
+                flash("No pudimos procesar la solicitud en este momento.", "error")
+                return render_template("recuperar_acceso.html")
+            finally:
+                conexion.close()
+        flash("Si el correo existe, recibirás un enlace de recuperación.", "exito")
+        return redirect(url_for("login"))
+    return render_template("recuperar_acceso.html")
+
+
+@app.route("/restablecer-contrasena/<token>", methods=["GET", "POST"])
+def restablecer_contrasena(token):
+    tokens = consulta_varias("SELECT * FROM tokens_recuperacion WHERE usado = 0 AND fecha_expiracion > NOW()")
+    registro = next((item for item in tokens if check_password_hash(item["token"], token)), None)
+    if not registro:
+        flash("El enlace de recuperación no es válido o ya venció.", "error")
+        return redirect(url_for("recuperar_acceso"))
+    if request.method == "POST":
+        contrasena = request.form.get("contrasena", "")
+        confirmacion = request.form.get("confirmacion", "")
+        if contrasena != confirmacion:
+            flash("Las contraseñas no coinciden.", "error")
+        elif not contrasena_valida(contrasena):
+            flash("La contraseña debe tener 10 caracteres, mayúscula, minúscula y número.", "error")
+        else:
+            conexion = obtener_conexion()
+            try:
+                with conexion.cursor() as cursor:
+                    cursor.execute("UPDATE usuarios SET contrasena=%s WHERE id_usuario=%s", (generate_password_hash(contrasena), registro["id_usuario"]))
+                    cursor.execute("UPDATE tokens_recuperacion SET usado=1 WHERE id_token=%s", (registro["id_token"],))
+                conexion.commit()
+            finally:
+                conexion.close()
+            flash("Contraseña actualizada. Ya puedes iniciar sesión.", "exito")
+            return redirect(url_for("login"))
+    return render_template("restablecer_contrasena.html")
 
 
 # ------------------------------------------------------------

@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block titulo %}Nueva contraseña - Newrofy{% endblock %}
+{% block contenido %}
+<div class="login-shell"><section class="login-brand"><div><p class="eyebrow">ACCESO SEGURO</p><h1>Crea una nueva contraseña.</h1></div><p>Usa una clave única para Newrofy.</p></section><section class="tarjeta-login"><p class="eyebrow">RESTABLECER</p><h1>Nueva contraseña</h1><p class="muted">Elige una contraseña segura para continuar.</p><form method="POST"><label for="contrasena">Nueva contraseña</label><input id="contrasena" type="password" name="contrasena" autocomplete="new-password" required><small>10+ caracteres, mayúscula, minúscula y número.</small><label for="confirmacion">Confirma la contraseña</label><input id="confirmacion" type="password" name="confirmacion" autocomplete="new-password" required><button type="submit">Actualizar contraseña <span>→</span></button></form></section></div>
+{% endblock %}

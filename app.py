@@ -79,6 +79,18 @@ def estrategia_actual(id_empresa):
     return dato
 
 
+def analisis_marca_actual(id_empresa):
+    if not id_empresa:
+        return None
+    dato = consulta_unica(
+        "SELECT * FROM analisis_marca WHERE id_empresa = %s ORDER BY id_analisis DESC LIMIT 1",
+        (id_empresa,),
+    )
+    if dato and dato["capturas_perfiles"]:
+        dato["capturas_perfiles"] = json.loads(dato["capturas_perfiles"]) if isinstance(dato["capturas_perfiles"], str) else dato["capturas_perfiles"]
+    return dato
+
+
 def hay_usuarios():
     return consulta_unica("SELECT COUNT(*) AS total FROM usuarios")["total"] > 0
 
@@ -314,43 +326,47 @@ def dashboard():
 @login_requerido
 def diagnostico():
     empresa = empresa_actual()
+    paso = request.values.get("paso", "1")
+    if paso not in {"1", "2", "3"}:
+        paso = "1"
+    if paso != "1" and not empresa:
+        flash("Primero completa la información de tu negocio.", "error")
+        return redirect(url_for("diagnostico", paso=1))
     if request.method == "POST":
-        respuestas = {
-            "presencia": int(request.form.get("presencia", 62)),
-            "datos": int(request.form.get("datos", 54)),
-            "contenido": int(request.form.get("contenido", 68)),
-            "conversion": int(request.form.get("conversion", 48)),
-        }
-        puntaje = round(sum(respuestas.values()) / len(respuestas))
-        if puntaje >= 76:
-            nivel, mensaje = "Avanzado", "Tienes una base sólida para escalar con experimentación y automatización."
-        elif puntaje >= 51:
-            nivel, mensaje = "En desarrollo", "Ya hay avances. Priorizamos conectar datos, contenido y conversión."
-        else:
-            nivel, mensaje = "Fundamentos", "Empezamos por ordenar los canales que sostienen tu crecimiento."
-        negocio = request.form.get("negocio", "").strip()
-        sector = request.form.get("sector", "").strip()
-        propuesta = request.form.get("propuesta", "").strip()
-        objetivo = request.form.get("objetivo", "").strip()
-        presupuesto = request.form.get("presupuesto", "0").replace("$", "").replace("COP", "").replace(".", "").replace(",", "").strip() or "0"
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                if empresa:
-                    cursor.execute("UPDATE empresas SET nombre_empresa=%s, sector=%s, propuesta_valor=%s, objetivo=%s, presupuesto=%s WHERE id_empresa=%s", (negocio, sector, propuesta, objetivo, presupuesto, empresa["id_empresa"]))
-                    id_empresa = empresa["id_empresa"]
+                if paso == "1":
+                    negocio = request.form.get("negocio", "").strip()
+                    sector = request.form.get("sector", "").strip()
+                    propuesta = request.form.get("propuesta", "").strip()
+                    objetivo = request.form.get("objetivo", "").strip()
+                    presupuesto = request.form.get("presupuesto", "0").strip() or "0"
+                    if empresa:
+                        cursor.execute("UPDATE empresas SET nombre_empresa=%s, sector=%s, propuesta_valor=%s, objetivo=%s, presupuesto=%s WHERE id_empresa=%s", (negocio, sector, propuesta, objetivo, presupuesto, empresa["id_empresa"]))
+                    else:
+                        cursor.execute("INSERT INTO empresas (id_usuario, nombre_empresa, sector, propuesta_valor, objetivo, presupuesto, fecha_creacion) VALUES (%s,%s,%s,%s,%s,%s,CURDATE())", (session["id_usuario"], negocio, sector, propuesta, objetivo, presupuesto))
+                elif paso == "2":
+                    respuestas = {clave: int(request.form.get(clave, 50)) for clave in ("presencia", "datos", "contenido", "conversion")}
+                    puntaje = round(sum(respuestas.values()) / len(respuestas))
+                    nivel = "Avanzado" if puntaje >= 76 else "En desarrollo" if puntaje >= 51 else "Fundamentos"
+                    cursor.execute("INSERT INTO formularios_diagnostico (id_empresa, respuestas, fecha_completado) VALUES (%s,%s,NOW())", (empresa["id_empresa"], json.dumps(respuestas)))
+                    cursor.execute("INSERT INTO madurez_digital (id_formulario, nivel, puntaje) VALUES (%s,%s,%s)", (cursor.lastrowid, nivel, puntaje))
                 else:
-                    cursor.execute("INSERT INTO empresas (id_usuario, nombre_empresa, sector, propuesta_valor, objetivo, presupuesto, fecha_creacion) VALUES (%s,%s,%s,%s,%s,%s,CURDATE())", (session["id_usuario"], negocio, sector, propuesta, objetivo, presupuesto))
-                    id_empresa = cursor.lastrowid
-                cursor.execute("INSERT INTO formularios_diagnostico (id_empresa, respuestas, fecha_completado) VALUES (%s,%s,NOW())", (id_empresa, json.dumps(respuestas)))
-                id_formulario = cursor.lastrowid
-                cursor.execute("INSERT INTO madurez_digital (id_formulario, nivel, puntaje) VALUES (%s,%s,%s)", (id_formulario, nivel, puntaje))
+                    perfiles = [url.strip() for url in request.form.get("perfiles", "").splitlines() if url.strip()]
+                    coherencia = request.form.get("coherencia", "").strip()
+                    cursor.execute("INSERT INTO analisis_marca (id_empresa, imagen_logo, capturas_perfiles, resultado_coherencia) VALUES (%s,%s,%s,%s)", (empresa["id_empresa"], request.form.get("logo", "").strip() or None, json.dumps(perfiles), coherencia or None))
             conexion.commit()
         finally:
             conexion.close()
-        flash("Diagnóstico guardado en la base de datos.", "exito")
-        return redirect(url_for("diagnostico"))
-    return render_template("diagnostico.html", empresa=empresa, diagnostico=diagnostico_actual(empresa["id_empresa"] if empresa else None))
+        siguiente = int(paso) + 1
+        if siguiente <= 3:
+            flash(f"Paso {paso} guardado. Continuemos con el siguiente.", "exito")
+            return redirect(url_for("diagnostico", paso=siguiente))
+        flash("Diagnóstico completado. Ya puedes crear tu estrategia.", "exito")
+        return redirect(url_for("diagnostico", paso=3, completo=1))
+    id_empresa = empresa["id_empresa"] if empresa else None
+    return render_template("diagnostico.html", empresa=empresa, diagnostico=diagnostico_actual(id_empresa), analisis_marca=analisis_marca_actual(id_empresa), paso=int(paso), completo=request.args.get("completo") == "1")
 
 
 @app.route("/estrategia", methods=["GET", "POST"])

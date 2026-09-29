@@ -14,10 +14,10 @@
     <aside class="sidebar">
         <a class="marca" href="{{ url_for('dashboard') }}">Newrofy<span>IA + Neuromarketing</span></a>
         <nav class="navegacion" aria-label="Navegación principal">
-            <a href="{{ url_for('dashboard') }}">▦ <span>Dashboard</span></a>
-            <a href="{{ url_for('diagnostico') }}">◉ <span>Diagnóstico</span></a>
-            <a href="{{ url_for('estrategia') }}">✦ <span>Estrategia</span></a>
-            <a href="{{ url_for('reportes') }}">▥ <span>Reportes</span></a>
+            <a class="{% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">▦ <span>Dashboard</span></a>
+            <a class="{% if request.endpoint == 'diagnostico' %}active{% endif %}" href="{{ url_for('diagnostico', paso=1) }}">◉ <span>Diagnóstico</span></a>
+            <a class="{% if request.endpoint == 'estrategia' %}active{% endif %}" href="{{ url_for('estrategia') }}">✦ <span>Estrategia</span></a>
+            <a class="{% if request.endpoint == 'reportes' %}active{% endif %}" href="{{ url_for('reportes') }}">▥ <span>Reportes</span></a>
         </nav>
         <div class="sidebar-bottom"><span>Plan Profesional</span><strong>Activo</strong><a href="{{ url_for('logout') }}">Cerrar sesión</a></div>
     </aside>

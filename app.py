@@ -241,6 +241,8 @@ def login():
             session["nombre"] = usuario["nombre"]
             session["rol"] = usuario["nombre_cargo"]
             session.pop("id_empresa_activa", None)
+            session.pop("empresa_nueva_diagnostico", None)
+            session.pop("diagnostico_en_edicion", None)
             flash(f"Bienvenido, {usuario['nombre']}.", "exito")
             return redirect(url_for("dashboard"))
 
@@ -394,6 +396,10 @@ def empresas():
         """SELECT e.*,
                   EXISTS(SELECT 1 FROM formularios_diagnostico f
                           WHERE f.id_empresa = e.id_empresa) AS tiene_diagnostico,
+                  EXISTS(SELECT 1 FROM analisis_marca a
+                          WHERE a.id_empresa = e.id_empresa) AS tiene_identidad,
+                  (SELECT MAX(f.fecha_completado) FROM formularios_diagnostico f
+                   WHERE f.id_empresa = e.id_empresa) AS ultimo_diagnostico,
                   (SELECT COUNT(*) FROM estrategias es WHERE es.id_empresa = e.id_empresa) AS total_estrategias
            FROM empresas e
            WHERE e.id_usuario = %s
@@ -401,8 +407,19 @@ def empresas():
                     e.fecha_creacion DESC, e.id_empresa DESC""",
         (session["id_usuario"], session.get("id_empresa_activa", 0)),
     )
+    resumen_cartera = consulta_unica(
+        """SELECT COUNT(*) AS total_empresas,
+                  SUM(EXISTS(SELECT 1 FROM formularios_diagnostico f
+                             WHERE f.id_empresa = e.id_empresa)) AS diagnosticos_iniciados,
+                  (SELECT COUNT(*) FROM estrategias es
+                   JOIN empresas em ON em.id_empresa = es.id_empresa
+                   WHERE em.id_usuario = %s) AS estrategias_creadas
+           FROM empresas e WHERE e.id_usuario = %s""",
+        (session["id_usuario"], session["id_usuario"]),
+    )
     return render_template("empresas.html", empresas=empresas_registradas,
-                           id_empresa_activa=session.get("id_empresa_activa"))
+                           id_empresa_activa=session.get("id_empresa_activa"),
+                           resumen_cartera=resumen_cartera)
 
 
 @app.route("/empresas/<int:id_empresa>/seleccionar", methods=["POST"])
@@ -431,6 +448,10 @@ def diagnostico():
     if paso != "1" and not empresa:
         flash("Primero completa la información de tu negocio.", "error")
         return redirect(url_for("diagnostico", paso=1))
+    if request.method == "GET" and paso == "1" and empresa:
+        # Cada nuevo acceso inicia una captura limpia. Los datos anteriores
+        # permanecen guardados, pero no se reutilizan en el formulario.
+        session["diagnostico_en_edicion"] = empresa["id_empresa"]
     if request.method == "POST":
         conexion = obtener_conexion()
         try:
@@ -482,14 +503,14 @@ def diagnostico():
         return redirect(url_for("diagnostico", paso=2))
     if paso == "4" and not analisis_guardado:
         return redirect(url_for("diagnostico", paso=3))
-    formulario_vacio = (
-        paso == "1"
-        and empresa is not None
-        and session.get("empresa_nueva_diagnostico") == empresa["id_empresa"]
+    modo_diagnostico_limpio = (
+        empresa is not None
+        and session.get("diagnostico_en_edicion") == empresa["id_empresa"]
     )
     return render_template(
         "diagnostico.html", empresa=empresa, diagnostico=diagnostico_guardado,
-        analisis_marca=analisis_guardado, paso=int(paso), formulario_vacio=formulario_vacio,
+        analisis_marca=analisis_guardado, paso=int(paso),
+        formulario_vacio=modo_diagnostico_limpio, modo_diagnostico_limpio=modo_diagnostico_limpio,
     )
 
 

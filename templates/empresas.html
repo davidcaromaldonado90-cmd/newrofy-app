@@ -10,6 +10,12 @@
     </div>
 </header>
 
+<section class="kpi-grid portfolio-kpis">
+    <article><span>Empresas gestionadas</span><strong>{{ resumen_cartera.total_empresas }}</strong><small>Negocios registrados bajo tu cuenta administradora</small></article>
+    <article><span>Diagnósticos iniciados</span><strong>{{ resumen_cartera.diagnosticos_iniciados or 0 }}</strong><small>Empresas con respuestas de madurez guardadas</small></article>
+    <article><span>Estrategias creadas</span><strong>{{ resumen_cartera.estrategias_creadas or 0 }}</strong><small>Planes comerciales generados para tu cartera</small></article>
+</section>
+
 <section class="company-toolbar">
     <div><h2>Tu cartera</h2><p>Los datos de cada empresa se conservan separados.</p></div>
     <span class="company-count">{{ empresas|length }} empresa{{ '' if empresas|length == 1 else 's' }}</span>
@@ -38,11 +44,12 @@
         <h2>{{ empresa.nombre_empresa }}</h2>
         <p>{{ empresa.sector or 'Sector pendiente de registrar' }}</p>
         <div class="company-data">
-            <div><span>Diagnóstico</span><b>{% if empresa.tiene_diagnostico %}Respuestas registradas{% else %}Pendiente de iniciar{% endif %}</b></div>
-            <div><span>Estrategias</span><b>{{ empresa.total_estrategias }} plan{{ '' if empresa.total_estrategias == 1 else 'es' }}</b></div>
+            <div><span>Estado del diagnóstico</span><b>{% if empresa.tiene_identidad %}Completado{% elif empresa.tiene_diagnostico %}Madurez registrada{% else %}Pendiente de iniciar{% endif %}</b></div>
+            <div><span>Estrategias creadas</span><b>{{ empresa.total_estrategias }} plan{{ '' if empresa.total_estrategias == 1 else 'es' }}</b></div>
         </div>
+        <p class="company-hint">{% if empresa.ultimo_diagnostico %}Última medición: {{ empresa.ultimo_diagnostico.strftime('%d/%m/%Y') }}.{% else %}Aún no hay una medición de diagnóstico.{% endif %}</p>
         {% if empresa.id_empresa == id_empresa_activa %}
-        <div class="company-actions"><span class="primary-button selected">✓ Empresa seleccionada</span><a class="outline-button" href="{{ url_for('diagnostico', paso=1) }}">Ir al diagnóstico →</a></div>
+        <div class="company-actions"><span class="primary-button selected">✓ Empresa seleccionada</span><a class="outline-button" href="{{ url_for('diagnostico', paso=1) }}">Iniciar diagnóstico nuevo →</a></div>
         {% else %}
         <form class="company-actions" method="post" action="{{ url_for('seleccionar_empresa', id_empresa=empresa.id_empresa) }}"><button class="primary-button" type="submit">Seleccionar esta empresa →</button></form>
         {% endif %}

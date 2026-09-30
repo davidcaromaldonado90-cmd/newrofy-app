@@ -38,8 +38,8 @@
         <h2>{{ empresa.nombre_empresa }}</h2>
         <p>{{ empresa.sector or 'Sector pendiente de registrar' }}</p>
         <div class="company-data">
-            <div><span>Madurez digital</span><b>{% if empresa.puntaje_madurez is not none %}{{ empresa.puntaje_madurez }}/100{% else %}Pendiente{% endif %}</b></div>
-            <div><span>Estrategias</span><b>{{ empresa.total_estrategias }}</b></div>
+            <div><span>Diagnóstico</span><b>{% if empresa.tiene_diagnostico %}Respuestas registradas{% else %}Pendiente de iniciar{% endif %}</b></div>
+            <div><span>Estrategias</span><b>{{ empresa.total_estrategias }} plan{{ '' if empresa.total_estrategias == 1 else 'es' }}</b></div>
         </div>
         {% if empresa.id_empresa == id_empresa_activa %}
         <div class="company-actions"><span class="primary-button selected">✓ Empresa seleccionada</span><a class="outline-button" href="{{ url_for('diagnostico', paso=1) }}">Ir al diagnóstico →</a></div>

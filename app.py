@@ -376,6 +376,7 @@ def empresas():
                          publico_objetivo or None, objetivo or None),
                     )
                     session["id_empresa_activa"] = cursor.lastrowid
+                    session["empresa_nueva_diagnostico"] = cursor.lastrowid
                 conexion.commit()
             finally:
                 conexion.close()
@@ -391,16 +392,8 @@ def empresas():
 
     empresas_registradas = consulta_varias(
         """SELECT e.*,
-                  (SELECT m.puntaje
-                     FROM formularios_diagnostico f
-                     JOIN madurez_digital m ON m.id_formulario = f.id_formulario
-                    WHERE f.id_empresa = e.id_empresa
-                    ORDER BY f.fecha_completado DESC, f.id_formulario DESC LIMIT 1) AS puntaje_madurez,
-                  (SELECT m.nivel
-                     FROM formularios_diagnostico f
-                     JOIN madurez_digital m ON m.id_formulario = f.id_formulario
-                    WHERE f.id_empresa = e.id_empresa
-                    ORDER BY f.fecha_completado DESC, f.id_formulario DESC LIMIT 1) AS nivel_madurez,
+                  EXISTS(SELECT 1 FROM formularios_diagnostico f
+                          WHERE f.id_empresa = e.id_empresa) AS tiene_diagnostico,
                   (SELECT COUNT(*) FROM estrategias es WHERE es.id_empresa = e.id_empresa) AS total_estrategias
            FROM empresas e
            WHERE e.id_usuario = %s
@@ -475,6 +468,8 @@ def diagnostico():
             conexion.commit()
         finally:
             conexion.close()
+        if paso == "1":
+            session.pop("empresa_nueva_diagnostico", None)
         siguiente = int(paso) + 1
         if siguiente <= 4:
             flash(f"Paso {paso} guardado. Continuemos con el siguiente.", "exito")
@@ -487,7 +482,15 @@ def diagnostico():
         return redirect(url_for("diagnostico", paso=2))
     if paso == "4" and not analisis_guardado:
         return redirect(url_for("diagnostico", paso=3))
-    return render_template("diagnostico.html", empresa=empresa, diagnostico=diagnostico_guardado, analisis_marca=analisis_guardado, paso=int(paso))
+    formulario_vacio = (
+        paso == "1"
+        and empresa is not None
+        and session.get("empresa_nueva_diagnostico") == empresa["id_empresa"]
+    )
+    return render_template(
+        "diagnostico.html", empresa=empresa, diagnostico=diagnostico_guardado,
+        analisis_marca=analisis_guardado, paso=int(paso), formulario_vacio=formulario_vacio,
+    )
 
 
 @app.route("/estrategia", methods=["GET", "POST"])
